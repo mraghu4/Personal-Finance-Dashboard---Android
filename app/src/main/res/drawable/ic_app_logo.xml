@@ -1,0 +1,47 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+
+    <!-- Background Circle -->
+    <path
+        android:pathData="M512,512m-512,0a512,512 0,1 1,1024 0a512,512 0,1 1,-1024 0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="1024"
+                android:endY="1024"
+                android:type="linear">
+                <item android:offset="0" android:color="#FF3B82F6"/> <!-- AccentBlue -->
+                <item android:offset="1" android:color="#FF8B5CF6"/> <!-- AccentPurple -->
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Minimalist Wallet Body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M256,350h512c35,0 64,28 64,64v300c0,35 -28,64 -64,64h-512c-35,0 -64,-28 -64,-64v-300c0,-35 28,-64 64,-64z" />
+
+    <!-- Wallet Flap -->
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M600,450h232v150h-232c-35,0 -64,-28 -64,-64v-22c0,-35 28,-64 64,-64z" />
+
+    <!-- Wallet Button -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M650,525m-20,0a20,20 0,1 1,40 0a20,20 0,1 1,-40 0" />
+
+    <!-- Styled Coin popping out -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M400,300m-60,0a60,60 0,1 1,120 0a60,60 0,1 1,-120 0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M400,270v60M380,300h40" /> <!-- Plus on coin -->
+
+</vector>
