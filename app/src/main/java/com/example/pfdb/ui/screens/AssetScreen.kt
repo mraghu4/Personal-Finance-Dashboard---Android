@@ -31,12 +31,14 @@ import com.example.pfdb.ui.theme.*
 
 @Composable
 fun AssetScreen(viewModel: FinanceViewModel) {
-    val assets by viewModel.allAssets.collectAsState()
-    val liabilities by viewModel.allLiabilities.collectAsState()
-    val totalAssets by viewModel.totalMarketValue.collectAsState()
-    val totalLiabilities by viewModel.totalLiabilities.collectAsState()
-    val currency by viewModel.selectedCurrency.collectAsState()
     val familyMembers by viewModel.familyMembers.collectAsState()
+    val selectedId by viewModel.selectedFamilyMemberId.collectAsState()
+    val assets by viewModel.filteredAssets.collectAsState()
+    val liabilities by viewModel.filteredLiabilities.collectAsState()
+    
+    val totalAssets = assets.sumOf { it.marketValue }
+    val totalLiabilities = liabilities.sumOf { it.amount }
+    val currency by viewModel.selectedCurrency.collectAsState()
     
     var showAddDialog by remember { mutableStateOf(false) }
     var editingAsset by remember { mutableStateOf<Asset?>(null) }
@@ -52,7 +54,7 @@ fun AssetScreen(viewModel: FinanceViewModel) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 24.dp),
+                .padding(top = 24.dp, bottom = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -68,6 +70,11 @@ fun AssetScreen(viewModel: FinanceViewModel) {
                 Text("Add")
             }
         }
+
+        // Family Selector
+        FamilyScrollRow(familyMembers, selectedId, viewModel, currency)
+        
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Portfolio Summary
         Row(
@@ -87,13 +94,18 @@ fun AssetScreen(viewModel: FinanceViewModel) {
         ) {
             // Assets Section
             val categories = listOf("Bank Accounts", "Stock Broker", "Mutual Funds", "Movable Assets", "Immovable Assets")
-            categories.forEach { category ->
+            val usedCategories = assets.map { it.type }.distinct()
+            val allCategoryKeys = (categories + usedCategories).distinct()
+
+            allCategoryKeys.forEach { category ->
                 val categoryAssets = assets.filter { it.type == category }
                 if (categoryAssets.isNotEmpty()) {
                     item { CategoryHeader(category, categoryAssets.sumOf { it.marketValue }, currency) }
                     items(categoryAssets) { asset ->
+                        val ownerName = familyMembers.find { it.id == asset.familyMemberId }?.name ?: "Unknown"
                         AssetListItem(
                             asset = asset,
+                            ownerName = ownerName,
                             currency = currency,
                             onClick = { editingAsset = asset },
                             onDelete = { viewModel.deleteAsset(asset) }
@@ -109,8 +121,10 @@ fun AssetScreen(viewModel: FinanceViewModel) {
                     CategoryHeader("Liabilities", liabilities.sumOf { it.amount }, currency, isLiability = true)
                 }
                 items(liabilities) { liability ->
+                    val ownerName = familyMembers.find { it.id == liability.familyMemberId }?.name ?: "Unknown"
                     LiabilityListItem(
                         liability = liability,
+                        ownerName = ownerName,
                         currency = currency,
                         onClick = { editingLiability = liability },
                         onDelete = { viewModel.deleteLiability(liability) }
@@ -137,7 +151,10 @@ fun AssetScreen(viewModel: FinanceViewModel) {
             asset = asset,
             familyMembers = familyMembers,
             onDismiss = { editingAsset = null },
-            onConfirm = { viewModel.updateAsset(it) }
+            onConfirm = { 
+                viewModel.updateAsset(it)
+                editingAsset = null
+            }
         )
     }
 
@@ -146,7 +163,10 @@ fun AssetScreen(viewModel: FinanceViewModel) {
             liability = liability,
             familyMembers = familyMembers,
             onDismiss = { editingLiability = null },
-            onConfirm = { viewModel.updateLiability(it) }
+            onConfirm = { 
+                viewModel.updateLiability(it)
+                editingLiability = null
+            }
         )
     }
 }
@@ -208,7 +228,7 @@ fun CategoryHeader(title: String, total: Double, currency: String, isLiability: 
 }
 
 @Composable
-fun AssetListItem(asset: Asset, currency: String, onClick: () -> Unit, onDelete: () -> Unit) {
+fun AssetListItem(asset: Asset, ownerName: String, currency: String, onClick: () -> Unit, onDelete: () -> Unit) {
     Column(modifier = Modifier.clickable(onClick = onClick)) {
         Row(
             modifier = Modifier
@@ -219,7 +239,7 @@ fun AssetListItem(asset: Asset, currency: String, onClick: () -> Unit, onDelete:
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(asset.name, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
-                Text("Asset • ${asset.institution}", fontSize = 12.sp, color = TextSecondary)
+                Text("Asset • ${asset.institution} • $ownerName", fontSize = 12.sp, color = TextSecondary)
                 if (asset.notes.isNotEmpty()) {
                     Text(asset.notes, fontSize = 12.sp, color = TextSecondary, style = androidx.compose.ui.text.TextStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic))
                 }
@@ -247,7 +267,9 @@ fun AssetListItem(asset: Asset, currency: String, onClick: () -> Unit, onDelete:
                     }
                 }
                 
-                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                IconButton(onClick = { 
+                    onDelete() 
+                }, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Default.Delete, contentDescription = null, tint = Danger, modifier = Modifier.size(16.dp))
                 }
             }
@@ -257,7 +279,7 @@ fun AssetListItem(asset: Asset, currency: String, onClick: () -> Unit, onDelete:
 }
 
 @Composable
-fun LiabilityListItem(liability: Liability, currency: String, onClick: () -> Unit, onDelete: () -> Unit) {
+fun LiabilityListItem(liability: Liability, ownerName: String, currency: String, onClick: () -> Unit, onDelete: () -> Unit) {
     Column(modifier = Modifier.clickable(onClick = onClick)) {
         Row(
             modifier = Modifier
@@ -268,7 +290,7 @@ fun LiabilityListItem(liability: Liability, currency: String, onClick: () -> Uni
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(liability.name, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
-                Text("Liability", fontSize = 12.sp, color = TextSecondary)
+                Text("Liability • $ownerName", fontSize = 12.sp, color = TextSecondary)
                 if (liability.notes.isNotEmpty()) {
                     Text(liability.notes, fontSize = 12.sp, color = TextSecondary, style = androidx.compose.ui.text.TextStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic))
                 }
@@ -292,18 +314,16 @@ fun AddEntryDialog(
     onAddAsset: (Asset) -> Unit,
     onAddLiability: (Liability) -> Unit
 ) {
-    var entryType by remember { mutableStateOf("Asset") } // "Asset" or "Liability"
-    
-    // Shared fields
+    var entryType by remember { mutableStateOf("Asset") }
     var name by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") } // marketValue for asset, amount for liability
+    var amount by remember { mutableStateOf("") }
     var selectedMemberId by remember { mutableStateOf(familyMembers.firstOrNull()?.id ?: 0) }
     var notes by remember { mutableStateOf("") }
-    
-    // Asset specific
     var institution by remember { mutableStateOf("") }
     var invested by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Bank Accounts") }
+    var showCustomCategoryField by remember { mutableStateOf(false) }
+    var customCategory by remember { mutableStateOf("") }
 
     val categories = listOf("Bank Accounts", "Stock Broker", "Mutual Funds", "Movable Assets", "Immovable Assets")
 
@@ -347,7 +367,28 @@ fun AddEntryDialog(
                 if (entryType == "Asset") {
                     // Category
                     Text("Category", fontSize = 12.sp, color = TextSecondary)
-                    CategoryDropdown(categories, category) { category = it }
+                    if (!showCustomCategoryField) {
+                        CategoryDropdown(categories + listOf("+ Custom"), category) { 
+                            if (it == "+ Custom") {
+                                showCustomCategoryField = true
+                            } else {
+                                category = it
+                            }
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = customCategory,
+                            onValueChange = { customCategory = it },
+                            label = { Text("Custom Category Name") },
+                            modifier = Modifier.fillMaxWidth(),
+                            trailingIcon = {
+                                IconButton(onClick = { showCustomCategoryField = false }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Cancel")
+                                }
+                            },
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary)
+                        )
+                    }
 
                     OutlinedTextField(
                         value = institution,
@@ -366,24 +407,23 @@ fun AddEntryDialog(
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary)
                 )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (entryType == "Asset") {
-                        OutlinedTextField(
-                            value = invested,
-                            onValueChange = { invested = it },
-                            label = { Text("Invested") },
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary)
-                        )
-                    }
+                if (entryType == "Asset") {
                     OutlinedTextField(
-                        value = amount,
-                        onValueChange = { amount = it },
-                        label = { Text(if (entryType == "Asset") "Market Value" else "Amount") },
-                        modifier = Modifier.weight(1f),
+                        value = invested,
+                        onValueChange = { invested = it },
+                        label = { Text("Invested Amount (Optional)") },
+                        modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary)
                     )
                 }
+                
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text(if (entryType == "Asset") "Market Value" else "Amount") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary)
+                )
 
                 OutlinedTextField(
                     value = notes,
@@ -398,11 +438,13 @@ fun AddEntryDialog(
         confirmButton = {
             Button(
                 onClick = {
+                    val finalCategory = if (showCustomCategoryField) customCategory else category
                     if (entryType == "Asset") {
-                        onAddAsset(Asset(name = name, familyMemberId = selectedMemberId, type = category, investedAmount = invested.toDoubleOrNull() ?: 0.0, marketValue = amount.toDoubleOrNull() ?: 0.0, institution = institution, notes = notes))
+                        onAddAsset(Asset(name = name, familyMemberId = selectedMemberId, type = finalCategory, investedAmount = invested.toDoubleOrNull() ?: 0.0, marketValue = amount.toDoubleOrNull() ?: 0.0, institution = institution, notes = notes))
                     } else {
                         onAddLiability(Liability(name = name, familyMemberId = selectedMemberId, amount = amount.toDoubleOrNull() ?: 0.0, notes = notes))
                     }
+                    onDismiss()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
             ) { Text("Save Entry") }
@@ -428,6 +470,8 @@ fun EditAssetDialog(
     var category by remember { mutableStateOf(asset.type) }
     var selectedMemberId by remember { mutableStateOf(asset.familyMemberId) }
     var notes by remember { mutableStateOf(asset.notes) }
+    var showCustomCategoryField by remember { mutableStateOf(false) }
+    var customCategory by remember { mutableStateOf("") }
 
     val categories = listOf("Bank Accounts", "Stock Broker", "Mutual Funds", "Movable Assets", "Immovable Assets")
 
@@ -444,20 +488,43 @@ fun EditAssetDialog(
                 MemberDropdown(familyMembers, selectedMemberId) { selectedMemberId = it }
                 
                 Text("Category", fontSize = 12.sp, color = TextSecondary)
-                CategoryDropdown(categories, category) { category = it }
+                if (!showCustomCategoryField) {
+                    CategoryDropdown(categories + listOf("+ Custom"), category) { 
+                        if (it == "+ Custom") {
+                            showCustomCategoryField = true
+                        } else {
+                            category = it
+                        }
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = customCategory,
+                        onValueChange = { customCategory = it },
+                        label = { Text("Custom Category Name") },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = { showCustomCategoryField = false }) {
+                                Icon(Icons.Default.Close, contentDescription = "Cancel")
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary)
+                    )
+                }
 
                 OutlinedTextField(value = institution, onValueChange = { institution = it }, label = { Text("Institution") }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary))
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary))
                 
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(value = invested, onValueChange = { invested = it }, label = { Text("Invested") }, modifier = Modifier.weight(1f), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary))
-                    OutlinedTextField(value = market, onValueChange = { market = it }, label = { Text("Market Value") }, modifier = Modifier.weight(1f), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary))
-                }
-                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary))
+                OutlinedTextField(value = invested, onValueChange = { invested = it }, label = { Text("Invested Amount (Optional)") }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary))
+                OutlinedTextField(value = market, onValueChange = { market = it }, label = { Text("Market Value") }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary))
+                
+                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notes (Optional)") }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary))
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(asset.copy(name = name, institution = institution, investedAmount = invested.toDoubleOrNull() ?: 0.0, marketValue = market.toDoubleOrNull() ?: 0.0, type = category, familyMemberId = selectedMemberId, notes = notes)) }, colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)) { Text("Update") }
+            Button(onClick = { 
+                val finalCategory = if (showCustomCategoryField) customCategory else category
+                onConfirm(asset.copy(name = name, institution = institution, investedAmount = invested.toDoubleOrNull() ?: 0.0, marketValue = market.toDoubleOrNull() ?: 0.0, type = finalCategory, familyMemberId = selectedMemberId, notes = notes)) 
+            }, colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)) { Text("Update") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel", color = TextSecondary) }
@@ -490,7 +557,7 @@ fun EditLiabilityDialog(
                 MemberDropdown(familyMembers, selectedMemberId) { selectedMemberId = it }
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary))
                 OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Amount") }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary))
-                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary))
+                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notes (Optional)") }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = BorderColor, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary))
             }
         },
         confirmButton = {
